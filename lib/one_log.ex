@@ -14,13 +14,25 @@ defmodule OneLog do
   }
 
   def install() do
-    :telemetry.attach("one-log", [:phoenix, :endpoint, :stop], &handle_event/4, nil)
+    :telemetry.attach_many("one-log", [
+      [:phoenix, :router_dispatch, :exception],
+      [:phoenix, :endpoint, :stop]
+    ], &handle_event/4, nil)
   end
 
-  defp handle_event(_evt, _measurements, _metadata, _ctx) do
+  defp handle_event([:phoenix, :router_dispatch, :exception], _measurements, metadata, _ctx) do
+    log(:error, Exception.format(metadata.reason.kind, metadata.reason.reason, metadata.reason.stack))
+  end
+
+  defp handle_event([:phoenix, :endpoint, :stop], %{duration: duration}, metadata, _ctx) do
     metrics_map = Process.get(:__one_log_metrics__) || %{}
     logs_list = Process.get(:__one_log_logs__) || []
     metadata_list = Process.get(:__one_log_metadata__) || []
+    request_metadata = %{
+      duration: duration,
+      status_code: metadata.conn.status,
+      request_path: metadata.conn.request_path
+    }
 
     determined_log_level =
       logs_list
@@ -29,9 +41,12 @@ defmodule OneLog do
 
     log_messages = Enum.map(logs_list, fn {_, msg} -> msg end)
 
-    Logger.log(determined_log_level, "OneLog: #{inspect(log_messages)}", Map.merge(
-      Enum.into(metadata_list, %{}), metrics_map
-    ))
+    metadata = metadata_list
+      |> Enum.into(%{})
+      |> Map.merge(metrics_map)
+      |> Map.merge(request_metadata)
+
+    Logger.log(determined_log_level, "OneLog: #{inspect(log_messages)}", metadata)
   end
 
   def metadata(args) do
