@@ -5,14 +5,6 @@ defmodule OneLog do
 
   require Logger
 
-  @log_levels %{
-    debug: 0,
-    info: 1,
-    warn: 2,
-    error: 3,
-    fatal: 4
-  }
-
   def metadata(args) do
     current_metadata = Process.get(:__one_log_metadata__) || []
     Process.put(:__one_log_metadata__, Keyword.merge(current_metadata, args))
@@ -36,7 +28,11 @@ defmodule OneLog do
 
     determined_log_level =
       logs_list
-      |> Enum.max_by(fn {level, _} -> Map.get(@log_levels, level) end)
+      |> Enum.max_by(
+        fn {level, _} -> level end,
+        fn a, b -> Logger.compare_levels(a, b) != :lt end,
+        fn -> :info end
+      )
       |> elem(0)
 
     log_messages = Enum.map(logs_list, fn {_, msg} -> msg end)
