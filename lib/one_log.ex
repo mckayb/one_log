@@ -7,6 +7,8 @@ defmodule OneLog do
   @callback stop_events() :: [:telemetry.event_name()]
   @callback exception_events() :: [:telemetry.event_name()]
   @callback handle_event(:telemetry.event_name(), :telemetry.event_measurements(), :telemetry.event_metadata(), :telemetry.handler_config()) :: any()
+  @callback context() :: term()
+  @optional_callbacks context: 0
 
   require Logger
 
@@ -19,9 +21,11 @@ defmodule OneLog do
   }
 
   def install(module) do
-    exception_events = Application.get_env(:one_log, :exception_events, module.exception_events())
-    stop_events = Application.get_env(:one_log, :stop_events, module.stop_events())
-    :telemetry.attach_many(module.id(), exception_events ++ stop_events, &module.handle_event/4, nil)
+    exception_events = module.exception_events()
+    stop_events = module.stop_events()
+    ctx = if Kernel.function_exported?(module, :context, 0), do: module.context(), else: nil
+
+    :telemetry.attach_many(module.id(), exception_events ++ stop_events, &module.handle_event/4, ctx)
   end
 
   def metadata(args) do
