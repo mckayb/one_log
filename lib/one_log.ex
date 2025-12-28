@@ -3,13 +3,6 @@ defmodule OneLog do
   OneLog - TODO
   """
 
-  @callback id() :: :telemetry.handler_id()
-  @callback stop_events() :: [:telemetry.event_name()]
-  @callback exception_events() :: [:telemetry.event_name()]
-  @callback handle_event(:telemetry.event_name(), :telemetry.event_measurements(), :telemetry.event_metadata(), :telemetry.handler_config()) :: any()
-  @callback context() :: term()
-  @optional_callbacks context: 0
-
   require Logger
 
   @log_levels %{
@@ -19,14 +12,6 @@ defmodule OneLog do
     error: 3,
     fatal: 4
   }
-
-  def install(module) do
-    exception_events = module.exception_events()
-    stop_events = module.stop_events()
-    ctx = if Kernel.function_exported?(module, :context, 0), do: module.context(), else: nil
-
-    :telemetry.attach_many(module.id(), exception_events ++ stop_events, &module.handle_event/4, ctx)
-  end
 
   def metadata(args) do
     current_metadata = Process.get(:__one_log_metadata__) || []
